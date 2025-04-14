@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>华为心率图识别</title>
+</head>
+<body>
+  <h2>上传心率图</h2>
+  <form id="uploadForm" enctype="multipart/form-data">
+    <input type="file" id="imageInput" name="image" accept="image/*" required><br><br>
+    <input type="number" name="hr_at" placeholder="请输入无氧阈心率 (60~150)" required><br><br>
+
+    <!-- 分析文件保存路径输入框 -->
+    <label>请选择分析结果保存路径：</label><br>
+    <input type="text" id="savePath" name="save_path" style="width: 300px;"><br><br>
+
+    <button type="submit">开始分析</button>
+  </form>
+
+  <h3>识别结果:</h3>
+  <div id="result"></div>
+
+  <script>
+    document.getElementById('imageInput').addEventListener('change', function() {
+      const filePath = this.value.split('\\').pop();  // 获取文件名
+      document.getElementById('savePath').value = filePath;  // 默认保存路径设为文件名
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const response = await fetch('https://1327149232-0coemge9y6.ap-beijing.tencentscf.com', {
+        method: 'POST',
+        body: formData
+      });
+
+      let result = await response.json();
+      result.save_path = document.getElementById('savePath').value;
+
+      checkMissingFields(result); 
+    });
+
+    function checkMissingFields(result) {
+      const resultBox = document.getElementById('result');
+      resultBox.innerHTML = ""; 
+
+      if (!result.time_str || result.time_str.trim() === "") {
+        resultBox.innerHTML = `
+          <p>❗未识别出运动时间，请手动输入：</p>
+          <input type="number" id="hInput" value="0" min="0" max="23" style="width:50px;"> :
+          <input type="number" id="mInput" value="0" min="0" max="59" style="width:50px;"> :
+          <input type="number" id="sInput" value="0" min="0" max="59" style="width:50px;">
+          <button onclick="submitTime()">提交时间</button>
+        `;
+        window.submitTime = () => {
+          const h = document.getElementById('hInput').value.padStart(2, '0');
+          const m = document.getElementById('mInput').value.padStart(2, '0');
+          const s = document.getElementById('sInput').value.padStart(2, '0');
+          result.time_str = `${h}:${m}:${s}`;
+          checkMissingFields(result); 
+        };
+        return;
+      }
+
+      if (!result.hr_max || result.hr_max === 0) {
+        const val = prompt("❗未识别出最高心率，请手动输入：");
+        result.hr_max = parseInt(val);
+        checkMissingFields(result);
+        return;
+      }
+
+      if (!result.hr_min || result.hr_min === 0) {
+        const val = prompt("❗未识别出最低心率，请手动输入（建议为心率图最低数字+4）：");
+        result.hr_min = parseInt(val);
+        checkMissingFields(result);
+        return;
+      }
+      resultBox.innerHTML = `
+        <p>✅ 全部数据已补全：</p>
+        <pre>${JSON.stringify(result, null, 2)}</pre>
+      `;
+    }
+  </script>
+</body>
+</html>
